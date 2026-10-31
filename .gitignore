@@ -1,0 +1,56 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Local environment files (can contain secrets)
+.env
+.env.*
+!.env.example
+
+# Terraform working folder (downloaded providers)
+.terraform/
+
+# Terraform state (contains resource details and can contain secrets)
+*.tfstate
+*.tfstate.*
+
+# Terraform saved plans (can contain sensitive values)
+*.tfplan
+tfplan
+
+# Terraform variable files (can contain secrets or personal values)
+*.tfvars
+*.tfvars.json
+
+# Terraform crash logs and local override files
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI config
+.terraformrc
+terraform.rc
+
+# Power BI local cache
+*.pbix.bak
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
