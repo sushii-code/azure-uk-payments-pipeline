@@ -36,3 +36,39 @@ Notes in simple words, so I can explain each idea in an interview.
 - **The free SQL offer isn't available in every region.** It failed in Belgium Central, so the database lives in Germany West Central while the data lake stays in Belgium Central. A SQL server and its database must be in the same region.
 - **A perpetual diff means my code and Azure describe the same thing differently.** I wrote the SKU as `GP_S_Gen5_2`, Azure stores it as `GP_S_Gen5` with capacity 2, and `terraform plan` kept showing a change until my code matched what Azure returns.
 - **Antivirus can break developer tools.** Avast's HTTPS scanning replaces certificates, which broke the Azure CLI and also Terraform's private connection to its own plugins. The fix is not to turn off certificate checks; it's to find out who is replacing the certificate and deal with that.
+
+## Day 3: First Data Factory pipeline
+
+### What I learned about Data Factory
+
+- **Linked service:** the connection details for an outside system, such as an address and how to sign in. Mine point to the Frankfurter API and to my data lake.
+- **Dataset:** the specific data inside a connection, such as one API response or one file.
+- **Activity:** one step of work, such as "set a variable" or "copy data".
+- **Pipeline:** a group of activities that run together in a set order.
+- **Parameter:** a value passed in when something runs. `run_date` lets the same pipeline load any date, and if it's empty the pipeline uses today's UTC date.
+- **Managed identity for ADLS:** Data Factory proves who it is with its Azure-managed identity, and its "Storage Blob Data Contributor" role allows it to write files. No account key or SAS token exists to leak, and shared key access is turned off on the account anyway.
+
+### How the data is stored
+
+- **Partitioned folders:** each day gets its own folder, such as `fx_rates/date=2026-10-30/`. A later step can read one day without scanning everything, and re-running a day overwrites only that day's file.
+- **Why bronze keeps raw JSON:** bronze is my record of what the source sent. If I find a mistake in my cleaning code, I can fix it and rebuild silver and gold without asking the API again.
+
+### ECB working-day rates
+
+- The ECB publishes rates on working days only, so weekends and holidays have no new rates.
+- Frankfurter doesn't return an error for those days. It returns `200 OK` with the last published rates, and it did the same for a future date when I tested it.
+- So the folder date is the day I asked for, and the `date` inside the file is the day the rates were published. For Saturday 2026-10-31, the file inside `date=2026-10-31` says `2026-10-30`. Later steps should trust the `date` inside the file.
+
+### Choosing the right connector
+
+- **WebTable:** reads tables out of HTML web pages. It can't be used for my API, and my first pipeline run failed with "The connector WebTable is not supported".
+- **HTTP:** downloads whatever a URL returns, such as a file or one API response. This is what I use, because one GET request returns everything I need.
+- **REST:** made for JSON APIs that need extra handling, such as following many pages of results. Frankfurter doesn't need that here.
+- **Why Binary keeps bronze byte-exact:** a Binary copy moves the bytes without reading them, while a JSON copy reads the data and writes it out again, which can change the formatting. With Binary, `rates.json` is exactly what the API sent, but the Copy activity can't check that the content is valid JSON, so a later step has to.
+
+### What went wrong and how I fixed it
+
+- **First run failed:** ErrorCode 2200, "The connector WebTable is not supported". The Web linked service only reads HTML tables.
+- **Fix:** I switched to an HTTP (`HttpServer`) linked service with Binary source and sink datasets, so the JSON is copied byte-for-byte into bronze.
+- **Terraform race:** swapping the linked service type but keeping the name caused a create/delete race ("already exists"). A second `terraform apply` fixed it.
+- **Successful run:** on 2026-11-01 with `run_date=2026-10-30`, the pipeline took 32s and wrote `bronze/fx_rates/date=2026-10-30/rates.json` (134 B).
