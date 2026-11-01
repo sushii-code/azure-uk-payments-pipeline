@@ -72,3 +72,25 @@ Notes in simple words, so I can explain each idea in an interview.
 - **Fix:** I switched to an HTTP (`HttpServer`) linked service with Binary source and sink datasets, so the JSON is copied byte-for-byte into bronze.
 - **Terraform race:** swapping the linked service type but keeping the name caused a create/delete race ("already exists"). A second `terraform apply` fixed it.
 - **Successful run:** on 2026-11-01 with `run_date=2026-10-30`, the pipeline took 32s and wrote `bronze/fx_rates/date=2026-10-30/rates.json` (134 B).
+
+## Day 4: Payments simulator and bronze to silver
+
+### What I built
+
+- **Seeded simulator (standard library only):** it makes 2,000 rows a day. Using the date as the random seed means the same date always gives an identical file.
+- **Planted fraud:** 10 high-amount payments, 3 velocity cards and 3 impossible-travel cards.
+- **Planted dirty data:** 20 duplicates, 10 empty amounts, 6 bad timestamps and 5 lowercase currencies.
+- **Upload:** I uploaded the file to `bronze/payments/date=.../payments.csv` using `az` with `--auth-mode login`, because shared keys are disabled.
+- **ADF Copy from bronze CSV to silver Parquet:** it adds lineage columns (`ingest_run_id`, `source_file`, `ingested_at_utc`) that show where each row came from. Rows that can't be converted are skipped and written to a reject log.
+
+### Lesson: a green run doesn't prove the data is right
+
+- **First run:** it said 2000 read, 2000 written, 0 skipped. That looked fine, but opening the Parquet showed that every column was a string.
+- **Why:** with no dataset schema, ADF never converted the types, so nothing could be rejected.
+- **Fix:** I declared schemas on both datasets and added source types to the mapping.
+- **Re-run:** 2000 read, 1994 written, 6 skipped, matching the planted bad timestamps. The reject log lists exactly those 6 rows.
+- **Still open:** `amount` is a real decimal now, but it came out as `decimal(38,18)` instead of the `decimal(18,2)` I declared. The values are correct, so I need to round or cast it in a later step.
+
+### Left for Day 5 SQL
+
+Duplicates, NULL amounts and lowercase currency codes are still in silver. They're valid for their column types, so this copy doesn't reject them.

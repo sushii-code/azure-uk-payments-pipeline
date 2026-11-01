@@ -11,6 +11,7 @@ Simulator + Frankfurter API -> Azure Data Factory -> ADLS Gen2 -> Azure SQL -> P
 ## Progress
 
 - [x] Day 3: FX ingestion (Frankfurter API to ADLS bronze)
+- [x] Day 4: Payments simulator and typed bronze to silver copy with a reject log
 
 ## Folders
 

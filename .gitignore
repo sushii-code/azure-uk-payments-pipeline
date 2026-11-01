@@ -54,3 +54,6 @@ terraform.rc
 .idea/
 .DS_Store
 Thumbs.db
+
+# Generated data files (can be recreated with the simulator)
+data/
