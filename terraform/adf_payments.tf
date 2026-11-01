@@ -195,6 +195,8 @@ resource "azurerm_data_factory_pipeline" "bronze_to_silver_payments" {
           }
           formatSettings = {
             type = "DelimitedTextReadSettings"
+            # ADF adds this empty setting itself, so we declare it to stop plan showing a change every time
+            compressionProperties = null
           }
           additionalColumns = [
             {

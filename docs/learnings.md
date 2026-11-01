@@ -94,3 +94,23 @@ Notes in simple words, so I can explain each idea in an interview.
 ### Left for Day 5 SQL
 
 Duplicates, NULL amounts and lowercase currency codes are still in silver. They're valid for their column types, so this copy doesn't reject them.
+
+## Day 5: Azure SQL warehouse and fraud rules
+
+### What I built
+
+- **Star schema in Azure SQL:** `dw.fact_payment` sits in the middle, with `dim_card`, `dim_merchant` and `dim_date` around it. `dw.fx_rate`, `dw.reject_payment`, `dw.load_audit` and `stg.payments` support the load.
+- **Managed identity in SQL:** Data Factory signs in with its managed identity (`CREATE USER ... FROM EXTERNAL PROVIDER`). It has least privilege: it can write to `stg`, but only has SELECT and EXECUTE on `dw`.
+- **`pl_load_warehouse`:** Lookup FX json runs `usp_load_fx_rates`, while Copy silver to `stg` runs in parallel (it runs TRUNCATE first). `usp_load_payments` starts when both have succeeded. Activities retry 2 times, 60 seconds apart, because the free database auto-pauses and needs time to wake up.
+
+### Results for 2026-10-30
+
+- **Rows:** 1994 staged, 1964 loaded and 30 rejected (20 `duplicate`, 10 `missing_amount`).
+- **Planted fraud:** all caught, with 0 false positives: 10 high amount, 23 velocity rows on 3 cards and 3 impossible travel, making 36 suspicious rows.
+- **Reconciliation:** 14 of 14 checks PASS against counts predicted independently in Python.
+- **Idempotency test:** I ran the pipeline twice and still had 1964 fact rows, with 2 audit rows. Idempotent means running it again doesn't change the answer.
+
+### Gotchas
+
+- **Portal Query editor:** it showed only the last result set, and it rejected COLLATE in a WHERE. I used one UNION ALL query and a VARBINARY comparison instead.
+- **Terraform perpetual diff:** ADF adds `compressionProperties = null` to `formatSettings`, so I declared it explicitly to make my code match what Azure returns.
