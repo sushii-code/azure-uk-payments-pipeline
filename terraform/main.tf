@@ -29,6 +29,20 @@ resource "azurerm_storage_account" "lake" {
   shared_access_key_enabled       = false
   default_to_oauth_authentication = true
   tags                            = var.tags
+
+  # Keep deleted files and containers for 7 days, so a mistaken delete can be undone
+  # Versioning is left off on purpose: it keeps a paid copy every time a file is overwritten
+  blob_properties {
+    # Deleted files can be restored for 7 days
+    delete_retention_policy {
+      days = 7
+    }
+
+    # Deleted containers (like bronze) can be restored for 7 days
+    container_delete_retention_policy {
+      days = 7
+    }
+  }
 }
 
 # Three data lake containers: bronze (raw), silver (cleaned), gold (ready for reports)
@@ -41,6 +55,8 @@ resource "azurerm_storage_container" "layers" {
 }
 
 # Key Vault: the safe for secrets; access is controlled by RBAC roles, not access policies
+# It's empty, because every connection uses a managed identity or Entra sign-in instead of a secret
+# So nobody has a secrets role on it; add one back only when a real secret is needed (least privilege)
 resource "azurerm_key_vault" "main" {
   name                       = "kv-ukpay-dev-${random_string.suffix.result}"
   resource_group_name        = azurerm_resource_group.main.name
@@ -78,13 +94,6 @@ resource "azurerm_role_assignment" "adf_storage" {
 resource "azurerm_role_assignment" "me_storage" {
   scope                = azurerm_storage_account.lake.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
-# Allow you to create and read secrets in the Key Vault
-resource "azurerm_role_assignment" "me_key_vault" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets Officer"
   principal_id         = data.azurerm_client_config.current.object_id
 }
 

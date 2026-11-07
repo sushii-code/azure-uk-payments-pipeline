@@ -14,6 +14,7 @@ Simulator + Frankfurter API -> Azure Data Factory -> ADLS Gen2 -> Azure SQL -> P
 - [x] Day 4: Payments simulator and typed bronze to silver copy with a reject log
 - [x] Day 5: Azure SQL star schema, GBP conversion, fraud rules and reconciliation
 - [x] Day 6: Watermark-driven daily orchestration, schedule trigger and failure email alert
+- [x] Day 7: Security review and fixes; see [docs/security.md](docs/security.md)
 
 ## How it runs
 
