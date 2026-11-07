@@ -24,6 +24,19 @@ variable "my_ip_address" {
   }
 }
 
+# Email address for pipeline failure alerts, passed on the command line so it never gets saved in code
+variable "alert_email" {
+  description = "Email address that receives pipeline failure alerts."
+  type        = string
+  sensitive   = false
+
+  # Stop early if the value can't be an email address
+  validation {
+    condition     = strcontains(var.alert_email, "@")
+    error_message = "alert_email must be an email address containing @."
+  }
+}
+
 # Tags added to every resource that supports them
 variable "tags" {
   description = "Tags applied to all taggable resources."

@@ -114,3 +114,29 @@ Duplicates, NULL amounts and lowercase currency codes are still in silver. They'
 
 - **Portal Query editor:** it showed only the last result set, and it rejected COLLATE in a WHERE. I used one UNION ALL query and a VARBINARY comparison instead.
 - **Terraform perpetual diff:** ADF adds `compressionProperties = null` to `formatSettings`, so I declared it explicitly to make my code match what Azure returns.
+
+## Day 6: Daily orchestration and alerts
+
+### How the daily run works
+
+- **Watermark:** `dw.usp_get_dates_to_load` finds every day since the first successful load that has no 'succeeded' audit row. It's gap-aware, not "last date + 1", so a failed day in the middle is never forgotten. It returns the oldest days first, with at most 7 per run.
+- **Orchestration:** `pl_daily` looks up the missing dates, then runs a sequential ForEach. For each date it calls `pl_run_day`, which runs FX ingest and bronze to silver in parallel, then the warehouse load.
+- **Trigger:** `tr_daily_0600` runs at 06:00 GMT Standard Time with `up_to_date` set to yesterday. I created it but left it OFF, because the simulator upload is manual.
+
+### Test 1: catch-up
+
+- I ran `pl_daily` with `up_to_date` 2026-11-01. It found 31 Oct and 1 Nov and loaded both.
+- **Each day:** 1964 loaded and 30 rejected. 31 Oct had 18 velocity rows, matching the simulator.
+- **Weekend days:** they used Friday's ECB rates (`ecb_date` 2026-10-30).
+- **Paused database:** it had been paused for a week. The Lookup took 58s, and the retries absorbed the delay.
+
+### Test 2: failure
+
+- I ran `pl_daily` for 2026-11-02 with no payments file.
+- Bronze to silver retried twice and failed, so the warehouse load never started and `pl_daily` failed.
+- The Azure Monitor alert (`PipelineFailedRuns` > 0, emailed through the action group) fired.
+
+### Setup notes
+
+- I registered `Microsoft.Insights` manually, because Terraform has `resource_provider_registrations = "none"`.
+- The alert email is passed with `-var alert_email` and is never committed.
